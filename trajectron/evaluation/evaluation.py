@@ -10,11 +10,13 @@ from matplotlib import pyplot as plt
 def compute_ade(predicted_trajs, gt_traj):
     error = np.linalg.norm(predicted_trajs - gt_traj, axis=-1)
     ade = np.mean(error, axis=-1)
+    #print('error',error.shape, 'ade',ade.shape)
     return ade.flatten()
 
 
 def compute_fde(predicted_trajs, gt_traj):
-    final_error = np.linalg.norm(predicted_trajs[:, :, -1] - gt_traj[-1], axis=-1)
+    final_error = np.linalg.norm(predicted_trajs[..., -1,:] - gt_traj[...,-1,:], axis=-1)
+    #print(final_error)
     return final_error.flatten()
 
 
@@ -103,29 +105,30 @@ def compute_batch_statistics(prediction_output_dict,
 
 def log_batch_errors(batch_errors_list, log_writer, namespace, curr_iter, bar_plot=[], box_plot=[]):
     for node_type in batch_errors_list[0].keys():
+        # changed this!!! node_type.name -> node_type  
         for metric in batch_errors_list[0][node_type].keys():
             metric_batch_error = []
             for batch_errors in batch_errors_list:
                 metric_batch_error.extend(batch_errors[node_type][metric])
 
             if len(metric_batch_error) > 0:
-                log_writer.add_histogram(f"{node_type.name}/{namespace}/{metric}", metric_batch_error, curr_iter)
-                log_writer.add_scalar(f"{node_type.name}/{namespace}/{metric}_mean", np.mean(metric_batch_error), curr_iter)
-                log_writer.add_scalar(f"{node_type.name}/{namespace}/{metric}_median", np.median(metric_batch_error), curr_iter)
+                log_writer.add_histogram(f"{node_type}/{namespace}/{metric}", metric_batch_error, curr_iter)
+                log_writer.add_scalar(f"{node_type}/{namespace}/{metric}_mean", np.mean(metric_batch_error), curr_iter)
+                log_writer.add_scalar(f"{node_type}/{namespace}/{metric}_median", np.median(metric_batch_error), curr_iter)
 
                 if metric in bar_plot:
                     pd = {'dataset': [namespace] * len(metric_batch_error),
                                   metric: metric_batch_error}
                     kde_barplot_fig, ax = plt.subplots(figsize=(5, 5))
                     visualization.visualization_utils.plot_barplots(ax, pd, 'dataset', metric)
-                    log_writer.add_figure(f"{node_type.name}/{namespace}/{metric}_bar_plot", kde_barplot_fig, curr_iter)
+                    log_writer.add_figure(f"{node_type}/{namespace}/{metric}_bar_plot", kde_barplot_fig, curr_iter)
 
                 if metric in box_plot:
                     mse_fde_pd = {'dataset': [namespace] * len(metric_batch_error),
                                   metric: metric_batch_error}
                     fig, ax = plt.subplots(figsize=(5, 5))
                     visualization.visualization_utils.plot_boxplots(ax, mse_fde_pd, 'dataset', metric)
-                    log_writer.add_figure(f"{node_type.name}/{namespace}/{metric}_box_plot", fig, curr_iter)
+                    log_writer.add_figure(f"{node_type}/{namespace}/{metric}_box_plot", fig, curr_iter)
 
 
 def print_batch_errors(batch_errors_list, namespace, curr_iter):
@@ -136,5 +139,6 @@ def print_batch_errors(batch_errors_list, namespace, curr_iter):
                 metric_batch_error.extend(batch_errors[node_type][metric])
 
             if len(metric_batch_error) > 0:
-                print(f"{curr_iter}: {node_type.name}/{namespace}/{metric}_mean", np.mean(metric_batch_error))
-                print(f"{curr_iter}: {node_type.name}/{namespace}/{metric}_median", np.median(metric_batch_error))
+                # changed this!!!! node_type.name -> node_type
+                print(f"{curr_iter}: {node_type}/{namespace}/{metric}_mean", np.mean(metric_batch_error))
+                print(f"{curr_iter}: {node_type}/{namespace}/{metric}_median", np.median(metric_batch_error))

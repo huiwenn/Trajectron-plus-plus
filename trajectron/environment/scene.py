@@ -145,7 +145,11 @@ class Scene(object):
             if type is None or node.type == type:
                 lower_bound = timesteps - min_history_timesteps
                 upper_bound = timesteps + min_future_timesteps
+
+                #print(lower_bound, upper_bound)
+                #print(node.first_timestep, node.last_timestep)
                 mask = (node.first_timestep <= lower_bound) & (upper_bound <= node.last_timestep)
+                #print(mask)
                 if mask.any():
                     timestep_indices_present = np.nonzero(mask)[0]
                     for timestep_index_present in timestep_indices_present:

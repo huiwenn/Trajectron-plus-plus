@@ -185,6 +185,8 @@ def process_scene(ns_scene, env, nusc, data_path):
     sample = nusc.get('sample', sample_token)
     frame_id = 0
     while sample['next']:
+        print('data keys', sample['data'].keys())
+        
         annotation_tokens = sample['anns']
         for annotation_token in annotation_tokens:
             annotation = nusc.get('sample_annotation', annotation_token)

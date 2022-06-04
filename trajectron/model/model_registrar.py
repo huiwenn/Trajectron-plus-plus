@@ -17,6 +17,10 @@ class ModelRegistrar(nn.Module):
     def forward(self):
         raise NotImplementedError('Although ModelRegistrar is a nn.Module, it is only to store parameters.')
 
+    def dataParallel(self):
+        for k, v in self.model_dict.items():
+            self.model_dict[k] = nn.DataParallel(v)
+
     def get_model(self, name, model_if_absent=None):
         # 4 cases: name in self.model_dict and model_if_absent is None         (OK)
         #          name in self.model_dict and model_if_absent is not None     (OK)

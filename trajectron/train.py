@@ -34,8 +34,14 @@ else:
 if args.eval_device is None:
     args.eval_device = torch.device('cpu')
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+args.eval_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("using device", device)
+for i in range(torch.cuda.device_count()):
+    print(torch.cuda.get_device_name(i))
 # This is needed for memory pinning using a DataLoader (otherwise memory is pinned to cuda:0 by default)
-torch.cuda.set_device(args.device)
+#torch.cuda.set_device(args.device)
 
 if args.seed is not None:
     random.seed(args.seed)
@@ -78,7 +84,7 @@ def main():
     print('| batch_size: %d' % args.batch_size)
     print('| device: %s' % args.device)
     print('| eval_device: %s' % args.eval_device)
-    print('| Offline Scene Graph Calculation: %s' % args.offline_scene_graph)
+    print('| Offline Scene Graph Calculation: %s' % hyperparams['offline_scene_graph'])
     print('| EE state_combine_method: %s' % args.edge_state_combine_method)
     print('| EIE scheme: %s' % args.edge_influence_combine_method)
     print('| dynamic_edges: %s' % args.dynamic_edges)
@@ -113,12 +119,15 @@ def main():
         node_type1, node_type2, attention_radius = attention_radius_override.split(' ')
         train_env.attention_radius[(node_type1, node_type2)] = float(attention_radius)
 
+
     if train_env.robot_type is None and hyperparams['incl_robot_node']:
         train_env.robot_type = train_env.NodeType[0]  # TODO: Make more general, allow the user to specify?
         for scene in train_env.scenes:
             scene.add_robot_from_nodes(train_env.robot_type)
 
     train_scenes = train_env.scenes
+    #print("train_scenes:", train_scenes[0].nodes[0].data)
+    print('train_scenes', len(train_scenes))
     train_scenes_sample_probs = train_env.scenes_freq_mult_prop if args.scene_freq_mult_train else None
 
     train_dataset = EnvironmentDataset(train_env,
@@ -132,6 +141,7 @@ def main():
                                        return_robot=not args.incl_robot_node)
     train_data_loader = dict()
     for node_type_data_set in train_dataset:
+        print(node_type_data_set.node_type,len(node_type_data_set))
         if len(node_type_data_set) == 0:
             continue
 
@@ -161,7 +171,9 @@ def main():
             for scene in eval_env.scenes:
                 scene.add_robot_from_nodes(eval_env.robot_type)
 
-        eval_scenes = eval_env.scenes
+        np.random.shuffle(eval_env.scenes)
+        eval_scenes = eval_env.scenes[:300]
+        eval_env.scenes = eval_scenes
         eval_scenes_sample_probs = eval_env.scenes_freq_mult_prop if args.scene_freq_mult_eval else None
 
         eval_dataset = EnvironmentDataset(eval_env,
@@ -175,6 +187,9 @@ def main():
                                           return_robot=not args.incl_robot_node)
         eval_data_loader = dict()
         for node_type_data_set in eval_dataset:
+            print(node_type_data_set.node_type,len(node_type_data_set))
+            #print(node_type_data_set[0])
+
             if len(node_type_data_set) == 0:
                 continue
 
@@ -195,15 +210,18 @@ def main():
             scene.calculate_scene_graph(train_env.attention_radius,
                                         hyperparams['edge_addition_filter'],
                                         hyperparams['edge_removal_filter'])
-            print(f"Created Scene Graph for Training Scene {i}")
+            if i%10000 == 0:
+                print(f"Created Scene Graph for Training Scene {i}")
 
         for i, scene in enumerate(eval_scenes):
             scene.calculate_scene_graph(eval_env.attention_radius,
                                         hyperparams['edge_addition_filter'],
                                         hyperparams['edge_removal_filter'])
-            print(f"Created Scene Graph for Evaluation Scene {i}")
-
+            if i%10000 == 0:
+                print(f"Created Scene Graph for Training Scene {i}")
+                
     model_registrar = ModelRegistrar(model_dir, args.device)
+    model_registrar.dataParallel()
 
     trajectron = Trajectron(model_registrar,
                             hyperparams,
@@ -235,20 +253,31 @@ def main():
         if hyperparams['learning_rate_style'] == 'const':
             lr_scheduler[node_type] = optim.lr_scheduler.ExponentialLR(optimizer[node_type], gamma=1.0)
         elif hyperparams['learning_rate_style'] == 'exp':
-            lr_scheduler[node_type] = optim.lr_scheduler.ExponentialLR(optimizer[node_type],
+            lr_scheduler[node_type] = optim.lr_scheduler.ExponentialLR(optimizer[node_type], 
                                                                        gamma=hyperparams['learning_decay_rate'])
 
     #################################
     #           TRAINING            #
     #################################
+    
+    print('train_epochs', args.train_epochs)
     curr_iter_node_type = {node_type: 0 for node_type in train_data_loader.keys()}
+    print(curr_iter_node_type)
     for epoch in range(1, args.train_epochs + 1):
+
         model_registrar.to(args.device)
         train_dataset.augment = args.augment
         for node_type, data_loader in train_data_loader.items():
+            print('node_type', node_type)
+            if node_type == 'PEDESTRIAN':
+                node_type = train_env.NodeType.PEDESTRIAN
+            else: 
+                node_type = train_env.NodeType.VEHICLE
             curr_iter = curr_iter_node_type[node_type]
             pbar = tqdm(data_loader, ncols=80)
+            batches = 0
             for batch in pbar:
+                batches += 1
                 trajectron.set_curr_iter(curr_iter)
                 trajectron.step_annealers(node_type)
                 optimizer[node_type].zero_grad()
@@ -269,7 +298,7 @@ def main():
                                           curr_iter)
                     log_writer.add_scalar(f"{node_type}/train/loss", train_loss, curr_iter)
 
-                curr_iter += 1
+            curr_iter += 1
             curr_iter_node_type[node_type] = curr_iter
         train_dataset.augment = False
         if args.eval_every is not None or args.vis_every is not None:
@@ -304,7 +333,7 @@ def main():
                                                    scene.dt,
                                                    max_hl=max_hl,
                                                    ph=ph,
-                                                   map=scene.map['VISUALIZATION'] if scene.map is not None else None)
+                                                   map= None) #scene.map['VISUALIZATION'] if scene.map is not None else None)
                 ax.set_title(f"{scene.name}-t: {timestep}")
                 log_writer.add_figure('train/prediction', fig, epoch)
 
@@ -330,7 +359,7 @@ def main():
                                                    scene.dt,
                                                    max_hl=max_hl,
                                                    ph=ph,
-                                                   map=scene.map['VISUALIZATION'] if scene.map is not None else None)
+                                                   map=None) #scene.map['VISUALIZATION'] if scene.map is not None else None)
                 ax.set_title(f"{scene.name}-t: {timestep}")
                 log_writer.add_figure('eval/prediction', fig, epoch)
 
@@ -351,7 +380,7 @@ def main():
                                                    scene.dt,
                                                    max_hl=max_hl,
                                                    ph=ph,
-                                                   map=scene.map['VISUALIZATION'] if scene.map is not None else None)
+                                                   map=None) #scene.map['VISUALIZATION'] if scene.map is not None else None)
                 ax.set_title(f"{scene.name}-t: {timestep}")
                 log_writer.add_figure('eval/prediction_all_z', fig, epoch)
 
@@ -378,7 +407,7 @@ def main():
                                                 log_writer,
                                                 f"{node_type}/eval_loss",
                                                 epoch)
-
+                
                 # Predict batch timesteps for evaluation dataset evaluation
                 eval_batch_errors = []
                 for scene in tqdm(eval_scenes, desc='Sample Evaluation', ncols=80):

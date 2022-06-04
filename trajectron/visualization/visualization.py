@@ -40,8 +40,10 @@ def plot_trajectories(ax,
                                 ax=ax, shade=True, shade_lowest=False,
                                 color=np.random.choice(cmap), alpha=0.8)
 
+            node_type_list=['PEDESTRIAN', 'VEHICLE']
+            nodetype = node_type_list.index(node.type) if isinstance(node.type, str) else node.type.value
             ax.plot(predictions[batch_num, sample_num, :, 0], predictions[batch_num, sample_num, :, 1],
-                    color=cmap[node.type.value],
+                    color=cmap[nodetype],
                     linewidth=line_width, alpha=line_alpha)
 
             ax.plot(future[:, 0],
@@ -123,7 +125,7 @@ def visualize_distribution(ax,
                 # Plot an ellipse to show the Gaussian component
                 angle = np.arctan(u[1] / u[0])
                 angle = 180. * angle / np.pi  # convert to degrees
-                ell = patches.Ellipse(mean, v[0], v[1], 180. + angle, color='blue' if node.type.name == 'VEHICLE' else 'orange')
+                ell = patches.Ellipse(mean, v[0], v[1], 180. + angle, color='blue' if node.type == 'VEHICLE' else 'orange') #changed this!!! node.type.name
                 ell.set_edgecolor(None)
                 ell.set_clip_box(ax.bbox)
                 ell.set_alpha(pi/10)

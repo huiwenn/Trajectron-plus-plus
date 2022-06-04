@@ -82,6 +82,7 @@ class Trajectron(object):
             map = map.to(self.device)
 
         # Run forward pass
+
         model = self.node_models_dict[node_type]
         loss = model.train_loss(inputs=x,
                                 inputs_st=x_st_t,

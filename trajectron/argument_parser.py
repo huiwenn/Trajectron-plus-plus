@@ -127,7 +127,7 @@ parser.add_argument('--device',
 parser.add_argument("--eval_device",
                     help="what device to use during evaluation",
                     type=str,
-                    default=None)
+                    default='cuda:0')
 
 # Training Parameters
 parser.add_argument("--train_epochs",

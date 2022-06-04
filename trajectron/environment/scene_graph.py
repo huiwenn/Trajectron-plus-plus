@@ -139,7 +139,9 @@ class TemporalSceneGraph(object):
 
         node_type_mat = np.zeros((N, N), dtype=np.int8)
         node_attention_mat = np.zeros((N, N), dtype=np.float)
-
+        
+        node_type_list=['PEDESTRIAN', 'VEHICLE']
+        
         for node_idx, node in enumerate(nodes):
             if online:
                 # RingBuffers do not have a fixed constant size. Instead, they grow up to their capacity. Thus,
@@ -149,7 +151,7 @@ class TemporalSceneGraph(object):
             else:
                 position_cube[:, node_idx] = scene_temp_dict[node]
 
-            node_type_mat[:, node_idx] = node.type.value
+            node_type_mat[:, node_idx] = node_type_list.index(node.type) if isinstance(node.type, str) else node.type.value
             for node_idx_from, node_from in enumerate(nodes):
                 node_attention_mat[node_idx_from, node_idx] = attention_radius[(node_from.type, node.type)]
 

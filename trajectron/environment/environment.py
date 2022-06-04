@@ -18,7 +18,8 @@ class Environment(object):
         self._scenes_resample_prop = None
 
     def get_edge_types(self):
-        return list(product(self.NodeType, repeat=2))
+        #return list(product(self.NodeType, repeat=2))
+        return list(product(self.node_type_list, repeat=2))
 
     def get_standardize_params(self, state, node_type):
         memo_key = (orjson.dumps(state), node_type)

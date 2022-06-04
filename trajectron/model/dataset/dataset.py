@@ -13,7 +13,8 @@ class EnvironmentDataset(object):
         self.max_ft = kwargs['min_future_timesteps']
         self.node_type_datasets = list()
         self._augment = False
-        for node_type in env.NodeType:
+        for node_type in ['PEDESTRIAN','VEHICLE']: #env.NodeType:
+            #print(node_type)
             if node_type not in hyperparams['pred_state']:
                 continue
             self.node_type_datasets.append(NodeTypeDataset(env, node_type, state, pred_state, node_freq_mult,
@@ -44,7 +45,6 @@ class NodeTypeDataset(data.Dataset):
         self.max_ft = kwargs['min_future_timesteps']
 
         self.augment = augment
-
         self.node_type = node_type
         self.index = self.index_env(node_freq_mult, scene_freq_mult, **kwargs)
         self.len = len(self.index)
@@ -54,7 +54,9 @@ class NodeTypeDataset(data.Dataset):
         index = list()
         for scene in self.env.scenes:
             present_node_dict = scene.present_nodes(np.arange(0, scene.timesteps), type=self.node_type, **kwargs)
+            #print(scene.timesteps)
             for t, nodes in present_node_dict.items():
+                #print(t)
                 for node in nodes:
                     index += [(scene, t, node)] *\
                              (scene.frequency_multiplier if scene_freq_mult else 1) *\
